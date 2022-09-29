@@ -28,10 +28,10 @@ RUN $VIRTUAL_ENV/bin/python
 
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-interaction --no-ansi
+COPY . .
 
 # final
 FROM base as final
 LABEL org.opencontainers.image.source=https://github.com/svaikstude/PlexAutoSkip
 RUN ln -s /config ${PAS_PATH}/config
 VOLUME /config
-COPY root/ /
