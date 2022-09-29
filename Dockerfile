@@ -7,30 +7,24 @@ ENV PAS_PATH=/app \
     PYTHONHASHSEED=random \
     PYTHONUNBUFFERED=1
 
-WORKDIR /app
+WORKDIR $PAS_PATH
 
-# builder
+# final
 
-FROM base as builder
+FROM base as final
 
-ENV PIP_DEFAULT_TIMEOUT=100 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_NO_CACHE_DIR=1 \
+ENV PIP_NO_CACHE_DIR=1 \
     POETRY_VERSION=1.2.1 \
-    VIRTUAL_ENV=/app/venv/
+    VIRTUAL_ENV=$PAS_PATH/venv/
 
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
 
+RUN python -m pip install -U pip
 RUN python -m pip install "poetry==$POETRY_VERSION" \
     && python -m venv $VIRTUAL_ENV
-RUN python -m pip install -U pip
 
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-interaction --no-ansi
 COPY . .
-
-# final
-FROM base as final
-LABEL org.opencontainers.image.source=https://github.com/svaikstude/PlexAutoSkip
 RUN ln -s /config ${PAS_PATH}/config
 VOLUME /config
