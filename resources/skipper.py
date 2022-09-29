@@ -2,23 +2,28 @@
 
 import logging
 import time
-from resources.settings import Settings
-from resources.customEntries import CustomEntries
-from resources.sslAlertListener import SSLAlertListener
-from resources.mediaWrapper import Media, MediaWrapper, PLAYINGKEY, STOPPEDKEY, PAUSEDKEY, BUFFERINGKEY, rd
-from resources.log import getLogger
-from xml.etree.ElementTree import ParseError
-from urllib3.exceptions import ReadTimeoutError
-from requests.exceptions import ReadTimeout
 from socket import timeout
-from plexapi.exceptions import BadRequest
-from plexapi.client import PlexClient
-from plexapi.server import PlexServer
-from plexapi.playqueue import PlayQueue
-from plexapi.base import PlexSession
 from threading import Thread
 from typing import Dict, List
+from xml.etree.ElementTree import ParseError
+
 from pkg_resources import parse_version
+from plexapi.base import PlexSession
+from plexapi.client import PlexClient
+from plexapi.exceptions import BadRequest
+from plexapi.playqueue import PlayQueue
+from plexapi.server import PlexServer
+from pychromecast.controllers.plex import PlexController
+from requests.exceptions import ReadTimeout
+from urllib3.exceptions import ReadTimeoutError
+
+from resources.chromecast import ChromecastAdapter, ChromecastMonitor
+from resources.customEntries import CustomEntries
+from resources.log import getLogger
+from resources.mediaWrapper import (BUFFERINGKEY, PAUSEDKEY, PLAYINGKEY,
+                                    STOPPEDKEY, Media, MediaWrapper, rd)
+from resources.settings import Settings
+from resources.sslAlertListener import SSLAlertListener
 
 
 class Skipper():
@@ -61,10 +66,12 @@ class Skipper():
     def customEntries(self) -> CustomEntries:
         return self.settings.customEntries
 
-    def __init__(self, server: PlexServer, settings: Settings, logger: logging.Logger = None) -> None:
+    def __init__(self, server: PlexServer, settings: Settings, cc_monitor: ChromecastMonitor, logger: logging.Logger = None) -> None:
         self.server = server
         self.settings = settings
         self.log = logger or getLogger(__name__)
+        self.cc_monitor = cc_monitor
+        self.chromecast = None
 
         self.media_sessions: Dict[str, MediaWrapper] = {}
         self.delete: List[str] = []
@@ -111,6 +118,13 @@ class Skipper():
             self.start(sslopt)
 
     def checkMedia(self, mediaWrapper: MediaWrapper) -> None:
+        if mediaWrapper.player.product == "Plex Cast":
+            if not self.chromecast:
+                cc = self.cc_monitor.get_chromecast_by_ip(mediaWrapper.player.address)
+                plex_controller = PlexController()
+                cc.register_handler(plex_controller)
+                self.chromecast = ChromecastAdapter(plex_controller)
+
         if mediaWrapper.sinceLastAlert > self.TIMEOUT:
             self.log.debug("Session %s hasn't been updated in %d seconds" % (mediaWrapper, self.TIMEOUT))
             self.removeSession(mediaWrapper)
@@ -236,7 +250,7 @@ class Skipper():
                         return False
 
                     self.log.info("Seeking %s player playing %s from %d to %d" % (player.product, mediaWrapper, mediaWrapper.viewOffset, targetOffset))
-                    mediaWrapper.seekTo(targetOffset, player)
+                    mediaWrapper.seekTo(targetOffset, player, self.chromecast)
                 return True
             except ParseError:
                 self.log.debug("ParseError, seems to be certain players but still functional, continuing")
@@ -249,15 +263,22 @@ class Skipper():
             raise
 
     def skipPlayerTo(self, player: PlexClient, mediaWrapper: MediaWrapper) -> bool:
-        self.removeSession(mediaWrapper)
+        self.removeSession(mediaWrapper, False)
         self.ignoreSession(mediaWrapper)
         commandDelay = mediaWrapper.commandDelay or self.settings.commandDelay
         try:
             pq = PlayQueue.get(self.server, mediaWrapper.playQueueID)
             if pq.items[-1] == mediaWrapper.media:
                 self.log.debug("Seek target is the end but no more items in the playQueue, using seekTo to prevent loop")
-                player.seekTo(mediaWrapper.media.duration)
+                if self.chromecast:
+                    self.chromecast.seekTo(mediaWrapper.media.duration)
+                else:
+                    player.seekTo(mediaWrapper.media.duration)
             else:
+                if self.chromecast:
+                    self.chromecast.skipNext()
+                    self.chromecast = None
+                    return True
                 nextItem: Media = pq[pq.items.index(mediaWrapper.media) + 1]
                 server = self.server
                 if mediaWrapper.session.user != self.server.myPlexAccount() and mediaWrapper.userToken:
@@ -302,7 +323,10 @@ class Skipper():
                     self.log.debug("Unable to access timeline data for player %s to cache previous volume value, will restore to %d" % (player.product, previousVolume))
                 self.log.info("Setting %s player volume playing %s from %d to %d" % (player.product, mediaWrapper, previousVolume, volume))
                 mediaWrapper.updateVolume(volume, previousVolume, lowering)
-                player.setVolume(volume)
+                if self.chromecast:
+                    self.chromecast.setVolume(volume)
+                else:
+                    player.setVolume(volume)
                 return True
             except ParseError:
                 self.log.debug("ParseError, seems to be certain players but still functional, continuing")
@@ -483,10 +507,12 @@ class Skipper():
                 self.removeSession(sessionMediaWrapper)
                 break
 
-    def removeSession(self, mediaWrapper: MediaWrapper):
+    def removeSession(self, mediaWrapper: MediaWrapper, remove_chromecast: bool = True):
         if mediaWrapper.pasIdentifier in self.media_sessions:
             del self.media_sessions[mediaWrapper.pasIdentifier]
             self.log.debug("Deleting session %s, sessions: %d" % (mediaWrapper, len(self.media_sessions)))
+        if remove_chromecast:
+            self.chromecast = None
 
     def error(self, data: dict) -> None:
         self.log.error(data)

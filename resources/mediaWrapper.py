@@ -1,19 +1,21 @@
 import logging
 from datetime import datetime
-from plexapi import media, utils
-from plexapi.video import Episode, Movie
-from plexapi.server import PlexServer
-from plexapi.media import Marker, Chapter
-from plexapi.client import PlexClient
-from plexapi.base import PlexSession
-from plexapi.myplex import MyPlexAccount
-from plexapi.exceptions import NotFound
-from resources.customEntries import CustomEntries
-from resources.settings import Settings
-from resources.log import getLogger
-from typing import TypeVar, List
 from math import floor
+from typing import List, TypeVar
 
+from plexapi import media, utils
+from plexapi.base import PlexSession
+from plexapi.client import PlexClient
+from plexapi.exceptions import NotFound
+from plexapi.media import Chapter, Marker
+from plexapi.myplex import MyPlexAccount
+from plexapi.server import PlexServer
+from plexapi.video import Episode, Movie
+
+from resources.chromecast import ChromecastAdapter
+from resources.customEntries import CustomEntries
+from resources.log import getLogger
+from resources.settings import Settings
 
 Media = TypeVar("Media", Episode, Movie)
 
@@ -310,13 +312,16 @@ class MediaWrapper():
         vo = self._viewOffset + round((datetime.now() - self.lastUpdate).total_seconds() * 1000)
         return vo if vo <= (self.media.duration or vo) else self.media.duration
 
-    def seekTo(self, offset: int, player: PlexClient) -> None:
+    def seekTo(self, offset: int, player: PlexClient, chromecast: ChromecastAdapter = None) -> None:
         self.session.viewOffset = self.viewOffset
         self.seekOrigin = rd(self._viewOffset)
         self.seekTarget = rd(offset)
         self.lastUpdate = datetime.now()
         self._viewOffset = offset
-        player.seekTo(offset)
+        if chromecast:
+            chromecast.seekTo(offset)
+        else:
+            player.seekTo(offset)
         self.session.viewOffset = offset
 
     def badSeek(self) -> None:
