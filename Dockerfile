@@ -24,7 +24,6 @@ ENV PATH=$VIRTUAL_ENV/bin:$PATH
 RUN python -m pip install "poetry==$POETRY_VERSION" \
     && python -m venv $VIRTUAL_ENV
 RUN python -m pip install -U pip
-RUN $VIRTUAL_ENV/bin/python 
 
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-interaction --no-ansi
