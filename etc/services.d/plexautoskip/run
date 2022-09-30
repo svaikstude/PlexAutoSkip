@@ -1,5 +1,0 @@
-#!/usr/bin/with-contenv bash
-
-cd ${PAS_PATH} || exit
-
-exec s6-setuidgid abc ${PAS_PATH}/venv/bin/python ${PAS_PATH}/main.py;

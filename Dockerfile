@@ -27,3 +27,4 @@ RUN \
     /tmp/*
 
 VOLUME /config
+COPY root/ /
