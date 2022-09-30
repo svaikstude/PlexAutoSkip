@@ -8,7 +8,7 @@ on:
 
 env:
   tag: latest
-  project: plexautoskip-docker
+  project: plexautoskip
 
 jobs:
   docker:
