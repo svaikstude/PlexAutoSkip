@@ -1,28 +1,29 @@
-# base
-
 FROM ghcr.io/linuxserver/baseimage-alpine:3.15
+LABEL maintainer="svaikstude <k.manvydas@gmail.com>"
 
-ENV PAS_PATH=/usr/local/pas
-RUN mkdir $PAS_PATH
-WORKDIR $PAS_PATH
+ENV PAS_PATH /usr/local/pas
 
-# final
+COPY . $PAS_PATH
 
-FROM base as final
+# get python3 and git, and install python libraries
+RUN \
+  apk add --no-cache \
+    git \
+    python3 \
+    py3-pip && \
+# symlink python3 for compatibility
+  ln -s /usr/bin/python3 /usr/bin/python && \
+# install pip, venv, and set up a virtual self contained python environment
+  python3 -m pip install --user --upgrade pip && \
+  python3 -m pip install --user virtualenv && \
+  python3 -m virtualenv ${PAS_PATH}/venv && \
+  ${PAS_PATH}/venv/bin/pip install -r ${PAS_PATH}/setup/requirements.txt && \
+# link config
+  ln -s /config ${PAS_PATH}/config && \
+# cleanup
+  apk del --purge && \
+  rm -rf \
+    /root/.cache \
+    /tmp/*
 
-ENV PIP_NO_CACHE_DIR=1 \
-    POETRY_VERSION=1.2.1 \
-    VIRTUAL_ENV=$PAS_PATH/venv/
-
-ENV PATH=$VIRTUAL_ENV/bin:$PATH
-
-RUN python -m pip install -U pip
-RUN python -m pip install "poetry==$POETRY_VERSION" \
-    && python -m venv $VIRTUAL_ENV
-
-COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-interaction --no-ansi
-COPY . .
-RUN ln -s /config ${PAS_PATH}/config \
-    rm -rf .git*
 VOLUME /config
