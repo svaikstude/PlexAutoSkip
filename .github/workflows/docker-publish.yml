@@ -61,3 +61,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ github.token }}
+      - 
+        name: Create manifests for DockerHub
+        env:
+          DOCKER_CLI_EXPERIMENTAL: enabled
+        run: |
+          docker manifest create \
+          ghcr.io/${{ github.repository }}:${{ env.tag }} \
+          --amend ghcr.io/${{ github.repository }}:${{ env.tag }}-amd64
+      -
+        name: Push manifest to DockerHub
+        run: |
+          docker manifest push ghcr.io/${{ github.repository }}:${{ env.tag }}
