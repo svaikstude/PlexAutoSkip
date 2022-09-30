@@ -1,12 +1,9 @@
 # base
 
-FROM python:3.10.7 as base
+FROM ghcr.io/linuxserver/baseimage-alpine:3.15
 
-ENV PAS_PATH=/usr/local/pas \
-    PYTHONFAULTHANDLER=1 \
-    PYTHONHASHSEED=random \
-    PYTHONUNBUFFERED=1
-
+ENV PAS_PATH=/usr/local/pas
+RUN mkdir $PAS_PATH
 WORKDIR $PAS_PATH
 
 # final
@@ -26,5 +23,6 @@ RUN python -m pip install "poetry==$POETRY_VERSION" \
 COPY pyproject.toml poetry.lock ./
 RUN poetry install --no-interaction --no-ansi
 COPY . .
-RUN ln -s /config ${PAS_PATH}/config
+RUN ln -s /config ${PAS_PATH}/config \
+    rm -rf .git*
 VOLUME /config
