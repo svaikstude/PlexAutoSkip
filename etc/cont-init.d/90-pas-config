@@ -2,7 +2,7 @@
 
 # env check
 if [[ -z "${PAS_PATH}" ]]; then
-    export PAS_PATH="/app"
+    export PAS_PATH="/usr/local/pas"
 fi
 
 # permissions

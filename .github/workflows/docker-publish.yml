@@ -1,70 +1,102 @@
-name: Docker publish
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+name: Docker Publish
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches:
+      - 'master'
+  workflow_dispatch:
 
 env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-  # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.repository }}
-
+  tag: latest
+  project: plexautoskip
 
 jobs:
-  build:
-
+  docker:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      # This is used to complete the identity challenge
-      # with sigstore/fulcio when running outside of PRs.
-      id-token: write
-
+    strategy:
+      matrix:
+        include:
+          -
+            dockerfile: Dockerfile
+            platform: amd64
+          -
+            dockerfile: Dockerfile
+            platform: armhf
+          -
+            dockerfile: Dockerfile
+            platform: arm64
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-
-      # Workaround: https://github.com/docker/build-push-action/issues/461
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@79abd3f86f79a9d68a23c75a09a9a85889262adf
-
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@28218f9b04b4f3f62068d7b6ce6ca5b26e35336c
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      -
+        name: Login to DockerHub
+        uses: docker/login-action@v1 
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - 
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v1 
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-      - name: Build and push Docker image
-        id: build-and-push
-        uses: docker/build-push-action@ac9327eae2b366085ac7f6a2d02df8aa8ead720a
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+      -
+        name: Build and push
+        uses: docker/build-push-action@v2
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          file: ./${{ matrix.dockerfile }}
+          platforms: linux/${{ matrix.platform }}
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/${{ env.project }}:${{ env.tag }}-${{ matrix.platform }}
+            ghcr.io/${{ github.repository }}:${{ env.tag }}-${{ matrix.platform }}
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [docker]
+    steps:
+      -
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - 
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@v1 
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ github.token }}
+      - 
+        name: Create manifests for DockerHub
+        env:
+          DOCKER_CLI_EXPERIMENTAL: enabled
+        run: |
+          docker manifest create \
+          ${{ secrets.DOCKER_USERNAME }}/${{ env.project }}:${{ env.tag }} \
+          --amend ${{ secrets.DOCKER_USERNAME }}/${{ env.project }}:${{ env.tag }}-amd64 \
+          --amend ${{ secrets.DOCKER_USERNAME }}/${{ env.project }}:${{ env.tag }}-armhf \
+          --amend ${{ secrets.DOCKER_USERNAME }}/${{ env.project }}:${{ env.tag }}-arm64
+          docker manifest create \
+          ghcr.io/${{ github.repository }}:${{ env.tag }} \
+          --amend ghcr.io/${{ github.repository }}:${{ env.tag }}-amd64 \
+          --amend ghcr.io/${{ github.repository }}:${{ env.tag }}-armhf \
+          --amend ghcr.io/${{ github.repository }}:${{ env.tag }}-arm64
+      -
+        name: Push manifest to DockerHub
+        run: |
+          docker manifest push ${{ secrets.DOCKER_USERNAME }}/${{ env.project }}:${{ env.tag }}
+          docker manifest push ghcr.io/${{ github.repository }}:${{ env.tag }}

@@ -2,7 +2,7 @@
 
 FROM python:3.10.7 as base
 
-ENV PAS_PATH=/app \
+ENV PAS_PATH=/usr/local/pas \
     PYTHONFAULTHANDLER=1 \
     PYTHONHASHSEED=random \
     PYTHONUNBUFFERED=1
