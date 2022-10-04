@@ -31,7 +31,8 @@ class ChromecastMonitor:
             self._browser.devices[uuid], self._zconf
         )
         chromecast.wait()
-        self._chromecasts[uuid] = chromecast
+        if chromecast.cast_type == 'cast':
+            self._chromecasts[uuid] = chromecast
         self.log.debug(f"Discovered new Chromecast: {chromecast}")
 
     def update_callback(self, uuid: UUID, name: str):
