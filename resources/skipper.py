@@ -138,7 +138,7 @@ class Skipper():
         self.checkMediaSkip(mediaWrapper, leftOffset, rightOffset)
         self.checkMediaVolume(mediaWrapper, leftOffset, rightOffset)
 
-        if mediaWrapper.skipnext and mediaWrapper.ended and (mediaWrapper.viewOffset >= rd(mediaWrapper.media.duration * self.DURATION_TOLERANCE)):
+        if mediaWrapper.skipnext and mediaWrapper.ended and (mediaWrapper.viewOffset >= rd(mediaWrapper.media.duration - 5000)):
             self.log.info("Found ended %s session that has reached the end of its duration %d with viewOffset %d with skip-next enabled, will skip to next" % (mediaWrapper, mediaWrapper.media.duration, mediaWrapper.viewOffset))
             self.seekTo(mediaWrapper, mediaWrapper.media.duration)
         elif mediaWrapper.ended:
@@ -242,10 +242,10 @@ class Skipper():
 
         try:
             try:
-                if mediaWrapper.skipnext and targetOffset >= mediaWrapper.media.duration:
+                if mediaWrapper.skipnext and targetOffset >= mediaWrapper.media.duration - 5000:
                     return self.skipPlayerTo(player, mediaWrapper)
                 else:
-                    if targetOffset < mediaWrapper.viewOffset:
+                    if targetOffset < mediaWrapper.viewOffset - 5000:
                         self.log.warning("TargetOffset %d is less than current viewOffset %d, cannot go back without creating infinite loop" % (targetOffset, mediaWrapper.viewOffset))
                         return False
 
@@ -265,7 +265,7 @@ class Skipper():
     def skipPlayerTo(self, player: PlexClient, mediaWrapper: MediaWrapper) -> bool:
         self.removeSession(mediaWrapper, False)
         self.ignoreSession(mediaWrapper)
-        commandDelay = mediaWrapper.commandDelay or self.settings.commandDelay
+        # commandDelay = mediaWrapper.commandDelay or self.settings.commandDelay
         try:
             pq = PlayQueue.get(self.server, mediaWrapper.playQueueID)
             if pq.items[-1] == mediaWrapper.media:
@@ -279,16 +279,17 @@ class Skipper():
                     self.chromecast.skipNext()
                     self.chromecast = None
                     return True
-                nextItem: Media = pq[pq.items.index(mediaWrapper.media) + 1]
-                server = self.server
-                if mediaWrapper.session.user != self.server.myPlexAccount() and mediaWrapper.userToken:
-                    server = PlexServer(self.server._baseurl, token=mediaWrapper.userToken, session=self.server._session, timeout=self.server._timeout)
-                newQueue = PlayQueue.create(server, list(pq.items), nextItem)
-                self.log.debug("Creating new PlayQueue %d with start item %s" % (newQueue.playQueueID, nextItem))
-                time.sleep(commandDelay / 1000)
-                player.stop()
-                time.sleep(commandDelay / 1000)
-                player.playMedia(newQueue)
+                player.skipNext()
+                # nextItem: Media = pq[pq.items.index(mediaWrapper.media) + 1]
+                # server = self.server
+                # if mediaWrapper.session.user != self.server.myPlexAccount() and mediaWrapper.userToken:
+                #     server = PlexServer(self.server._baseurl, token=mediaWrapper.userToken, session=self.server._session, timeout=self.server._timeout)
+                # newQueue = PlayQueue.create(server, list(pq.items), nextItem)
+                # self.log.debug("Creating new PlayQueue %d with start item %s" % (newQueue.playQueueID, nextItem))
+                # time.sleep(commandDelay / 1000)
+                # player.stop()
+                # time.sleep(commandDelay / 1000)
+                # player.playMedia(newQueue)
             return True
         except KeyboardInterrupt:
             raise

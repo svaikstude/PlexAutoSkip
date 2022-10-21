@@ -351,7 +351,7 @@ class MediaWrapper():
         self._viewOffset = offset
         self.session.viewOffset = offset
         self.lastUpdate = datetime.now()
-        if not self.ended and state in [PAUSEDKEY, STOPPEDKEY] and offset >= rd(self.media.duration):
+        if not self.ended and state in [PAUSEDKEY, STOPPEDKEY, PLAYINGKEY] and offset >= rd(self.media.duration - 5000):
             self.ended = True
 
     def updateVolume(self, volume: int, previousVolume: int, lowering: bool) -> bool:
