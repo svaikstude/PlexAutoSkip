@@ -66,11 +66,10 @@ class Skipper():
     def customEntries(self) -> CustomEntries:
         return self.settings.customEntries
 
-    def __init__(self, server: PlexServer, settings: Settings, cc_monitor: ChromecastMonitor, logger: logging.Logger = None) -> None:
+    def __init__(self, server: PlexServer, settings: Settings, logger: logging.Logger = None) -> None:
         self.server = server
         self.settings = settings
         self.log = logger or getLogger(__name__)
-        self.cc_monitor = cc_monitor
         self.chromecast = None
 
         self.media_sessions: Dict[str, MediaWrapper] = {}
@@ -118,13 +117,6 @@ class Skipper():
             self.start(sslopt)
 
     def checkMedia(self, mediaWrapper: MediaWrapper) -> None:
-        if mediaWrapper.player.product == "Plex Cast":
-            if not self.chromecast:
-                cc = self.cc_monitor.get_chromecast_by_ip(mediaWrapper.player.address)
-                plex_controller = PlexController()
-                cc.register_handler(plex_controller)
-                self.chromecast = ChromecastAdapter(plex_controller)
-
         if mediaWrapper.sinceLastAlert > self.TIMEOUT:
             self.log.debug("Session %s hasn't been updated in %d seconds" % (mediaWrapper, self.TIMEOUT))
             self.removeSession(mediaWrapper)
@@ -294,7 +286,7 @@ class Skipper():
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            self.log.warning("Seek target is the end but unable to get PlayQueue %d data from server, aborting to prevent extra skips or playback issues" % (mediaWrapper.playQueueID))
+            self.log.warning("Seek target is the end but unable to get PlayQueue %d (%d) data from server, aborting to prevent extra skips or playback issues" % (mediaWrapper.playQueueID, mediaWrapper.media.playQueueItemID))
             self.log.debug(e)
             return False
 
