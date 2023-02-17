@@ -14,7 +14,7 @@ ignore-certs = False
 
 [Skip]
 mode = skip
-tags = intro, commercial, advertisement
+tags = intro, commercial, advertisement, credits
 types = movie, episode
 ignored-libraries = 
 last-chapter = 0.0
@@ -27,6 +27,7 @@ next = False
 start = 3000
 end = 1000
 delay = 500
+tags = intro
 
 [Volume]
 low = 0
