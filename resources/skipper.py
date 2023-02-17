@@ -275,7 +275,7 @@ class Skipper():
                     self.chromecast.skipNext()
                     self.chromecast = None
                     return True
-                player.skipNext()
+                player.select()
                 # nextItem: Media = pq[pq.items.index(mediaWrapper.media) + 1]
                 # server = self.server
                 # if mediaWrapper.session.user != self.server.myPlexAccount() and mediaWrapper.userToken:
