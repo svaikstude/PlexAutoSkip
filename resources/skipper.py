@@ -164,6 +164,8 @@ class Skipper():
                 return
 
         for marker in mediaWrapper.markers:
+            leftOffset = leftOffset if marker.type in mediaWrapper.offsetTags else 0
+            rightOffset = rightOffset if marker.type in mediaWrapper.offsetTags else 0
             start = marker.start if marker.start < leftOffset else (marker.start + leftOffset)
             if (start) <= mediaWrapper.viewOffset < rd(marker.end):
                 self.log.info("Found skippable marker %s for media %s with range %d-%d and viewOffset %d" % (marker.type, mediaWrapper, marker.start + leftOffset, marker.end + rightOffset, mediaWrapper.viewOffset))
@@ -205,6 +207,8 @@ class Skipper():
                 return True
 
         for marker in mediaWrapper.markers:
+            leftOffset = leftOffset if marker.type in mediaWrapper.offsetTags else 0
+            rightOffset = rightOffset if marker.type in mediaWrapper.offsetTags else 0
             if (marker.start + leftOffset) <= mediaWrapper.viewOffset < (marker.end + rightOffset):
                 self.log.debug("Inside marker %s for media %s with range %d-%d and viewOffset %d, volume should be low" % (marker.type, mediaWrapper, marker.start + leftOffset, marker.end, mediaWrapper.viewOffset))
                 return True
@@ -286,7 +290,7 @@ class Skipper():
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            self.log.warning("Seek target is the end but unable to get PlayQueue %d (%d) data from server, aborting to prevent extra skips or playback issues" % (mediaWrapper.playQueueID, mediaWrapper.media.playQueueItemID))
+            self.log.warning("Seek target is the end but unable to get PlayQueue %d (%s) data from server, aborting to prevent extra skips or playback issues" % (mediaWrapper.playQueueID, mediaWrapper.media.playQueueItemID))
             self.log.debug(e)
             return False
 
@@ -330,9 +334,12 @@ class Skipper():
         except:
             raise
 
+    def safeVersion(self, version) -> str:
+        return version.split("-")[0]
+
     def validPlayer(self, player: PlexClient) -> bool:
         bad = self.BROKEN_CLIENTS.get(player.product)
-        if bad and player.version and parse_version(player.version) >= parse_version(bad):
+        if bad and player.version and parse_version(self.safeVersion(player.version)) >= parse_version(bad):
             self.log.error("Bad %s version %s due to Plex team removing 'Advertise as Player/Plex Companion' functionality. Please visit %s#notice to review this issue and voice your support on the Plex forums for this feature to be restored" % (player.product, player.version, self.TROUBLESHOOT_URL))
             return False
         return True
